@@ -5,8 +5,8 @@
 #include <stdlib.h>
 
 typedef enum {
-  primin,
-  special_forward = 0, special_number,
+  primin = -1,
+  special_forward, special_number,
   prim_Y, prim_I, prim_J, prim_K,
   prim_S, prim_C, prim_B,
   prim_SS, prim_CC, prim_BB,
@@ -35,16 +35,14 @@ word *heap_lo, *heap_ptr, *heap_hi;
 size_t heap_size;
 
 static inline bool primitive(word w) {
-  return(primin <= w.prim && w.prim < primax);
+  return(primin < w.prim && w.prim < primax);
 }
 
 static inline bool isnumber(cell c) {
   return(c[0].prim == special_number);
 }
 
-typedef enum { right, left } either;
-
-static void dump(word w, either in, either mode) {
+static void dump(word w, int in, int mode) {
   cell c = w.ptr;
   if(primitive(w)) {
     printf("%s", primname[w.prim]);
@@ -52,17 +50,17 @@ static void dump(word w, either in, either mode) {
     printf("%g", c[1].num);
   } else {
     if(in != mode) printf("(");
-    dump(c[0], left, left);
+    dump(c[0], 0, mode && in == 1);
     printf(" ");
-    dump(c[1], right, mode);
+    dump(c[1], 1, mode);
     if(in != mode) printf(")");
   }
 }
 
 static void edump(cell c) {
-  dump(c[0], left, left);
+  dump(c[0], 0, 0);
   printf(" -- ");
-  dump(c[1], right, right);
+  dump(c[1], 1, 1);
   printf("\n");
 }
 
@@ -102,13 +100,6 @@ static cell cheney(cell root) {
   return(new);
 }
 
-static inline cell need(cell c, int n) {
-  if(heap_ptr + 2*n < heap_hi)
-    return(c);
-  else
-    return(cheney(c));
-}
-
 static inline word cons(word w0, word w1) {
   assert(heap_ptr < heap_hi);
   cell c = heap_ptr;
@@ -118,6 +109,9 @@ static inline word cons(word w0, word w1) {
   word w = { c };
   return(w);
 }
+
+#define need(n) \
+  ((void)((heap_hi < heap_ptr + 2*n) && (c = cheney(c))))
 
 #include "initial-orders.h"
 
@@ -146,57 +140,44 @@ int main(void) {
 #define rewind2 rewind1; rewind(a2)
 #define rewind3 rewind2; rewind(a3)
 #define rewind4 rewind3; rewind(a4)
+#define result(r0,r1) (r[0] = (r0), r[1] = (r1))
       case(prim_I): { /* identity */
 	rewind1;
 	c[0] = a1;
       } continue;
       case(prim_J): { /* J t f -> f */
 	rewind2;
-	r[0].prim = prim_I;
-	r[1] = a2;
+	result((word){ .prim = prim_I}, a2);
 	c[0] = a2; /* shortcut */
       } continue;
       case(prim_K): { /* K t f -> t */
 	rewind2;
-	r[0].prim = prim_I;
-	r[1] = a1;
+	result((word){ .prim = prim_I}, a1);
 	c[0] = a1; /* shortcut */
       } continue;
       case(prim_S): { /* S f g x -> (f x) (g x) */
-	c = need(c, 2);
-	rewind3;
-	r[0] = cons(a1,a3);
-	r[1] = cons(a2,a3);
+	need(2); rewind3;
+	result(cons(a1,a3),cons(a2,a3));
       } continue;
       case(prim_C): { /* C f g x -> (f x) (g) */
-	c = need(c, 1);
-	rewind3;
-	r[0] = cons(a1,a3);
-	r[1] = a2;
+	need(1); rewind3;
+	result(cons(a1,a3),a2);
       } continue;
       case(prim_B): { /* C f g x -> (f) (g x) */
-	c = need(c, 1);
-	rewind3;
-	r[0] = a1;
-	r[1] = cons(a2,a3);
+	need(1); rewind3;
+	result(a1,cons(a2,a3));
       } continue;
       case(prim_SS): { /* SS e f g x -> (e (f x)) (g x) */
-	c = need(c, 3);
-	rewind4;
-	r[0] = cons(a1,cons(a2,a4));
-	r[1] = cons(a3,a4);
+	need(3); rewind4;
+	result(cons(a1,cons(a2,a4)),cons(a3,a4));
       } continue;
       case(prim_CC): { /* CC e f g x -> (e (f x)) (g) */
-	c = need(c, 2);
-	rewind4;
-	r[0] = cons(a1,cons(a2,a4));
-	r[1] = a3;
+	need(2); rewind4;
+	result(cons(a1,cons(a2,a4)),a3);
       } continue;
       case(prim_BB): { /* BB e f g x -> (e) (f (g x)) */
-	c = need(c, 2);
-	rewind4;
-	r[0] = a1;
-	r[1] = cons(a2,cons(a3,a4));
+	need(2); rewind4;
+	result(a1,cons(a2,cons(a3,a4)));
       } continue;
       case(prim_Y): { /* recursion Y f -> f (Y f) */
 	rewind1;
