@@ -150,18 +150,18 @@ static void eval(cell c) {
 	next[1].ptr = c;
 	c = next;
       } continue;
-      case(prim_I): {
+      case(prim_I): { /* identity */
 	word arg;
 	c = rewind(c, &arg);
 	if(c) c[0] = arg;
       } continue;
-      case(prim_J): {
+      case(prim_J): { /* false */
 	word t, f;
 	c = rewind(c, &t);
 	c = rewind(c, &f);
 	if(c) c[0] = f;
       } continue;
-      case(prim_K): {
+      case(prim_K): { /* true */
 	word t, f;
 	c = rewind(c, &t);
 	c = rewind(c, &f);
@@ -179,7 +179,70 @@ static void eval(cell c) {
 	  r[1] = cons(g,x);
 	}
       } continue;
-      case(prim_Y): {
+      case(prim_C): {
+	word f, g, x;
+	cell r;
+	c = need(c, 1);
+	c = rewind(c, &f);
+	c = rewind(c, &g);
+	c = rewind(r=c, &x);
+	if(c) {
+	  r[0] = cons(f,x);
+	  r[1] = g;
+	}
+      } continue;
+      case(prim_B): {
+	word f, g, x;
+	cell r;
+	c = need(c, 1);
+	c = rewind(c, &f);
+	c = rewind(c, &g);
+	c = rewind(r=c, &x);
+	if(c) {
+	  r[0] = f;
+	  r[1] = cons(g,x);
+	}
+      } continue;
+      case(prim_SS): {
+	word e, f, g, x;
+	cell r;
+	c = need(c, 3);
+	c = rewind(c, &e);
+	c = rewind(c, &f);
+	c = rewind(c, &g);
+	c = rewind(r=c, &x);
+	if(c) {
+	  r[0] = cons(e, cons(f,x));
+	  r[1] = cons(g,x);
+	}
+      } continue;
+      case(prim_CC): {
+	word e, f, g, x;
+	cell r;
+	c = need(c, 2);
+	c = rewind(c, &e);
+	c = rewind(c, &f);
+	c = rewind(c, &g);
+	c = rewind(r=c, &x);
+	if(c) {
+	  r[0] = cons(e, cons(f,x));
+	  r[1] = g;
+	}
+      } continue;
+      case(prim_BB): {
+	word e, f, g, x;
+	cell r;
+	c = need(c, 2);
+	c = rewind(c, &e);
+	c = rewind(c, &f);
+	c = rewind(c, &g);
+	c = rewind(r=c, &x);
+	if(c) {
+	  r[0] = e;
+	  r[1] = cons(f, cons(g,x));
+	}
+      } continue;
+      case(prim_Y): { /* recursion */
 	word fun;
 	cell r;
 	c = rewind(r=c, &fun);
