@@ -4,8 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define rewind my_rewind
-
 typedef enum {
   primin,
   special_forward = 0, special_number,
@@ -40,13 +38,17 @@ static inline bool primitive(word w) {
   return(primin <= w.prim && w.prim < primax);
 }
 
+static inline bool isnumber(cell c) {
+  return(c[0].prim == special_number);
+}
+
 typedef enum { right, left } either;
 
 static void dump(word w, either in, either mode) {
   cell c = w.ptr;
   if(primitive(w)) {
     printf("%s", primname[w.prim]);
-  } else if(c[0].prim == special_number) {
+  } else if(isnumber(c)) {
     printf("%g", c[1].num);
   } else {
     if(in != mode) printf("(");
@@ -74,8 +76,7 @@ static cell cheney(cell root) {
   for(word *here = new; here < ptr; here++) {
     if(primitive(*here)) {
       /* skip both words of a boxed number */
-      if(here->prim == special_number)
-	here++;
+      if(isnumber(here)) here++;
       continue;
     }
     cell there = here->ptr;
@@ -91,7 +92,7 @@ static cell cheney(cell root) {
       ptr += 2;
     }
   }
-  printf("cheney copied %d words\n", ptr - new);
+  printf("cheney copied %ld words\n", (long)(ptr-new));
   free(heap_lo);
   heap_lo = new;
   heap_hi = new + heap_size;
@@ -118,27 +119,9 @@ static inline word cons(word w0, word w1) {
   return(w);
 }
 
-static inline cell rewind(cell c, word *arg) {
-  cell prev = c[1].ptr;
-  *arg = c[1] = prev[0];
-  prev[0].ptr = c;
-  return(prev);
-}
-
-static inline cell numarg(cell c, double *arg) {
-  word box;
-  c = rewind(c, &box);
-  assert(!primitive(box) && box.ptr[0].prim == special_number);
-  *arg = box.ptr[1].num;
-  return(c);
-}
-
-static inline void numval(cell r, double val) {
-  r[0].prim = special_number;
-  r[1].num = val;
-}
-
 static void eval(cell c) {
+  word a1, a2, a3, a4;
+  double v, w;
   cell r;
   for(;;) {
     edump(c);
@@ -149,141 +132,111 @@ static void eval(cell c) {
 	next[1].ptr = c;
 	c = next;
       } continue;
+#define rewind(a) do {		\
+	cell prev = c[1].ptr;	\
+	a = c[1] = prev[0];	\
+	r = prev[0].ptr = c;	\
+	c = prev;		\
+      } while(0)
+#define rewind1          rewind(a1)
+#define rewind2 rewind1; rewind(a2)
+#define rewind3 rewind2; rewind(a3)
+#define rewind4 rewind3; rewind(a4)
       case(prim_I): { /* identity */
-	word arg;
-	c = rewind(c, &arg);
-	c[0] = arg;
+	rewind1;
+	c[0] = a1;
       } continue;
-      case(prim_J): { /* false */
-	word t, f;
-	c = rewind(r=c, &t);
-	c = rewind(r=c, &f);
+      case(prim_J): { /* J t f -> f */
+	rewind2;
 	r[0].prim = prim_I;
-	r[1] = f;
-	c[0] = f;
+	r[1] = a2;
+	c[0] = a2; /* shortcut */
       } continue;
-      case(prim_K): { /* true */
-	word t, f;
-	c = rewind(r=c, &t);
-	c = rewind(r=c, &f);
+      case(prim_K): { /* K t f -> t */
+	rewind2;
 	r[0].prim = prim_I;
-	r[1] = t;
-	c[0] = t;
+	r[1] = a1;
+	c[0] = a1; /* shortcut */
       } continue;
-      case(prim_S): {
-	word f, g, x;
+      case(prim_S): { /* S f g x -> (f x) (g x) */
 	c = need(c, 2);
-	c = rewind(r=c, &f);
-	c = rewind(r=c, &g);
-	c = rewind(r=c, &x);
-	r[0] = cons(f,x);
-	r[1] = cons(g,x);
+	rewind3;
+	r[0] = cons(a1,a3);
+	r[1] = cons(a2,a3);
       } continue;
-      case(prim_C): {
-	word f, g, x;
+      case(prim_C): { /* C f g x -> (f x) (g) */
 	c = need(c, 1);
-	c = rewind(r=c, &f);
-	c = rewind(r=c, &g);
-	c = rewind(r=c, &x);
-	r[0] = cons(f,x);
-	r[1] = g;
+	rewind3;
+	r[0] = cons(a1,a3);
+	r[1] = a2;
       } continue;
-      case(prim_B): {
-	word f, g, x;
+      case(prim_B): { /* C f g x -> (f) (g x) */
 	c = need(c, 1);
-	c = rewind(r=c, &f);
-	c = rewind(r=c, &g);
-	c = rewind(r=c, &x);
-	r[0] = f;
-	r[1] = cons(g,x);
+	rewind3;
+	r[0] = a1;
+	r[1] = cons(a2,a3);
       } continue;
-      case(prim_SS): {
-	word e, f, g, x;
+      case(prim_SS): { /* SS e f g x -> (e (f x)) (g x) */
 	c = need(c, 3);
-	c = rewind(r=c, &e);
-	c = rewind(r=c, &f);
-	c = rewind(r=c, &g);
-	c = rewind(r=c, &x);
-	r[0] = cons(e, cons(f,x));
-	r[1] = cons(g,x);
+	rewind4;
+	r[0] = cons(a1,cons(a2,a4));
+	r[1] = cons(a3,a4);
       } continue;
-      case(prim_CC): {
-	word e, f, g, x;
+      case(prim_CC): { /* CC e f g x -> (e (f x)) (g) */
 	c = need(c, 2);
-	c = rewind(r=c, &e);
-	c = rewind(r=c, &f);
-	c = rewind(r=c, &g);
-	c = rewind(r=c, &x);
-	r[0] = cons(e, cons(f,x));
-	r[1] = g;
+	rewind4;
+	r[0] = cons(a1,cons(a2,a4));
+	r[1] = a3;
       } continue;
-      case(prim_BB): {
-	word e, f, g, x;
+      case(prim_BB): { /* BB e f g x -> (e) (f (g x)) */
 	c = need(c, 2);
-	c = rewind(r=c, &e);
-	c = rewind(r=c, &f);
-	c = rewind(r=c, &g);
-	c = rewind(r=c, &x);
-	r[0] = e;
-	r[1] = cons(f, cons(g,x));
+	rewind4;
+	r[0] = a1;
+	r[1] = cons(a2,cons(a3,a4));
       } continue;
-      case(prim_Y): { /* recursion */
-	word fun;
-	cell r;
-	c = rewind(r=c, &fun);
-	r[0] = fun;
+      case(prim_Y): { /* recursion Y f -> f (Y f) */
+	rewind1;
+	r[0] = a1;
 	r[1].ptr = r;
       } continue;
-      case(special_number): {
-	word n, k;
-	cell r;
-	c = rewind(r=c, &n); /* unboxed */
-	c = rewind(r=c, &k);
-	n = r[0]; /* boxed */
-	r[0] = k;
-	r[1] = n;
+      case(special_number): { /* num N k -> k (num N) */
+	rewind2;
+	a1 = r[0]; /* boxed */
+	r[0] = a2;
+	r[1] = a1;
       } continue;
       case(prim_exit): {
 	exit(0);
       } continue;
-      case(prim_print): {
-	double v;
-	word k, w;
-	c = numarg(r=c, &v);
-	c = rewind(r=c, &k);
-	c = rewind(r=c, &w);
+#define numarg(a,n) do {				\
+	rewind(a);					\
+	assert(!primitive(a) && isnumber(a.ptr));	\
+	n = a.ptr[1].num;				\
+    } while(0)
+#define numarg1          numarg(a1,v)
+#define numarg2 numarg1; numarg(a2,w)
+#define numprim(N, name, val)			\
+      case(prim_##name): {			\
+	numarg##N;				\
+	r[0].prim = special_number;		\
+	r[1].num = val;				\
+      } continue
+      numprim(1, floor, floor(v));
+      numprim(1, ceil, ceil(v));
+      numprim(1, abs, fabs(v));
+      numprim(1, neg, -v);
+      numprim(2, add, v+w);
+      numprim(2, sub, v-w);
+      numprim(2, mul, v*w);
+      numprim(2, div, v/w);
+      numprim(2, mod, v-w*floor(v/w));
+      numprim(2, pow, pow(v,w));
+      case(prim_print): {/* print n k w -> k w */
+	numarg1;
+	rewind2;
 	printf("%g\n", v);
-	/* print n k w -> k w */
-	r[0] = k;
+	r[0] = a1;
       } continue;
-
-#define numprim1(name, fun)	\
-      case(prim_##name): {	\
-	double v;		\
-	c = numarg(r=c, &v);	\
-	numval(r, fun(v));	\
-      } continue
-
-      numprim1(floor, floor);
-      numprim1(ceil, ceil);
-      numprim1(abs, fabs);
-      numprim1(neg, -);
-
-#define numprim2(name, expr)	\
-      case(prim_##name): {	\
-	double u, v;		\
-	c = numarg(r=c, &u);	\
-	c = numarg(r=c, &v);	\
-	numval(r, expr);	\
-      } continue
-
-      numprim2(add, u+v);
-      numprim2(sub, u-v);
-      numprim2(mul, u*v);
-      numprim2(div, u/v);
-      numprim2(mod, u-v*floor(u/v));
-      numprim2(pow, pow(u,v));
-
     }
   }
 }
