@@ -115,6 +115,8 @@ static cell cheney(cell root) {
 
   free(heap_lo);
 
+  printf("cheney copied %d words\n", ptr - new);
+
   heap_lo = new;
   heap_hi = new + heap_size;
   heap_ptr = ptr;
@@ -274,12 +276,15 @@ word IO[] = {
   [0].ptr = IO+2, [1].ptr = NULL,
   [2].ptr = IO+4, [3].prim = prim_I, // w
   [4].ptr = IO+6, [5].prim = prim_I, // k
-  [6].prim = prim_print, [7].ptr = IO+8,
-  [8].prim = prim_number, [9].num = 42
+  [6].ptr = IO+10, [7].ptr = IO+8,
+  [8].prim = prim_number, [9].num = 42,
+  [10].ptr = IO+12, [11].prim = prim_print,
+  [12].ptr = IO+14, [13].prim = prim_K,
+  [14].prim = prim_S, [15].prim = prim_K,
 };
 
 int main(void) {
-  heap_size = sizeof(IO)/sizeof(*IO);
+  heap_size = 2*sizeof(IO)/sizeof(*IO);
   eval(IO);
   return(0);
 }
