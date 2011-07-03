@@ -115,6 +115,16 @@ static inline word cons(word w0, word w1) {
 
 #include "initial-orders.h"
 
+//    <- rewind    unwind ->
+//
+//  [ | ]  [3| ]  [3| ]  [3| ]
+//   v        ^      ^      ^
+//  [ |3]  [ | ]  [2| ]  [2| ]
+//   v      v        ^      ^
+//  [ |2]  [ |2]  [ | ]  [1| ]
+//   v      v      v        ^
+//  [f|1]  [f|1]  [f|1]  [f| ]
+//
 int main(void) {
   word a1, a2, a3, a4;
   double v, w;
