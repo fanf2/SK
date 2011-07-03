@@ -1,29 +1,30 @@
+#include <assert.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
 
-typedef union word word, *cell;
+typedef enum {
+  primin,
+  prim_I, prim_J, prim_K, prim_S, prim_Y,
+  prim_number,
+  prim_floor, prim_ceil, prim_abs, prim_neg,
+  prim_add, prim_sub, prim_mul, prim_div, prim_mod, prim_pow,
+  primax
+} prim;
 
-typedef cell prim(cell app);
-
-union word {
-  word *ptr;
-  prim *fun;
+typedef union word {
+  union word *ptr;
+  prim prim;
   double num; /* only used in the second word of a cell */
-};
+} word, *cell;
 
 word *heap_lo, *heap_ptr, *heap_hi;
 
 size_t heap_size = 1<<10;
 
-/*
- * If a word doesn't point into the heap it must be a primitive function
- * (unless it is the second word of a cell containing a boxed number).
- */
 static inline bool primitive(word w) {
-  return(w.ptr < heap_lo || heap_hi <= w.ptr);
+  return(primin < w.prim && w.prim < primax);
 }
-
-static prim numberfun;
 
 static cell cheney(cell root) {
   word *new = malloc(heap_size * sizeof(*new));
@@ -37,7 +38,7 @@ static cell cheney(cell root) {
   for(word *here = new; here < ptr; here++) {
     if(primitive(*here)) {
       /* skip both words of a boxed number */
-      if(here->fun == numberfun)
+      if(here->prim == prim_number)
 	here++;
       continue;
     }
@@ -74,6 +75,7 @@ static inline cell need(cell c, int n) {
 }
 
 static inline word cons(word w0, word w1) {
+  assert(heap_ptr < heap_hi);
   cell c = heap_ptr;
   c[0] = w0;
   c[1] = w1;
@@ -82,72 +84,103 @@ static inline word cons(word w0, word w1) {
   return(w);
 }
 
-static void eval(cell c) {
-  while(c != NULL) {
-    if(primitive(c[0])) {
-      c = c[0].fun(c);
-    } else {
-      cell next = c[0].ptr;
-      c[0] = next[1];
-      next[1].ptr = c;
-      c = next;
-    }
-  }
-}
-
 static inline cell unwind(cell c, word *arg) {
   cell prev = c[1].ptr;
+  if(prev == NULL)
+    return(NULL);
   *arg = c[1] = prev[0];
   prev[0].ptr = c;
   return(prev);
 }
 
-#define defprim(name) \
-  static prim name##fun; \
-  static word name = { .fun = name##fun }; \
-  static cell name##fun(cell c)
-
-defprim(I) {
-  word a1;
-  c = unwind(c, &a1);
-  c[0] = a1;
+static inline cell numarg(cell c, double *arg) {
+  word box;
+  c = unwind(c, &box);
+  if(c == NULL)
+    return(NULL);
+  assert(!primitive(box) && box.ptr[0].prim == prim_number);
+  *arg = box.ptr[1].num;
   return(c);
 }
 
-defprim(J) {
-  word t, f;
-  c = unwind(c, &t);
-  c = unwind(c, &f);
-  c[0] = f;
-  return(c);
+static inline void numval(cell c, double val) {
+  if(c == NULL)
+    return;
+  cell n = c[0].ptr;
+  n[0].prim = prim_number;
+  n[1].num = val;
 }
 
-defprim(K) {
-  word t, f;
-  c = unwind(c, &t);
-  c = unwind(c, &f);
-  c[0] = t;
-  return(c);
-}
+#define numprim1(name, fun)			\
+  case(prim_##name): {				\
+    double v;					\
+    c = numarg(c, &v);				\
+    numval(c, fun(v));				\
+  } continue
 
-defprim(S) {
-  word f, g, x;
-  c = need(c, 3);
-  c = unwind(c, &f);
-  c = unwind(c, &g);
-  c = unwind(c, &x);
-  c[0] = cons(cons(f,x),cons(g,x));
-  return(c);
-}
+#define numprim2(name, expr)			\
+  case(prim_##name): {				\
+    double u, v;				\
+    c = numarg(c, &u);				\
+    c = numarg(c, &v);				\
+    numval(c, expr);				\
+  } continue
 
-defprim(number) {
-  word n, k;
-  c = unwind(c, &n);
-  /* actually we want the boxed number */
-  n = c[0];
-  c = unwind(c, &k);
-  /* pass evaluated number to continuation */
-  c[0].ptr[0] = k;
-  c[0].ptr[1] = n;
-  return(c);
+static void eval(cell c) {
+  while(c) {
+    switch(c[0].prim) {
+      default: {
+	cell next = c[0].ptr;
+	c[0] = next[1];
+	next[1].ptr = c;
+	c = next;
+      } continue;
+      case(prim_I): {
+	word arg;
+	c = unwind(c, &arg);
+	if(c) c[0] = arg;
+      } continue;
+      case(prim_J): {
+	word t, f;
+	c = unwind(c, &t);
+	c = unwind(c, &f);
+	if(c) c[0] = f;
+      } continue;
+      case(prim_K): {
+	word t, f;
+	c = unwind(c, &t);
+	c = unwind(c, &f);
+	if(c) c[0] = t;
+      } continue;
+      case(prim_S): {
+	word f, g, x;
+	c = need(c, 3);
+	c = unwind(c, &f);
+	c = unwind(c, &g);
+	c = unwind(c, &x);
+	if(c) c[0] = cons(cons(f,x),cons(g,x));
+      } continue;
+      case(prim_number): {
+	word n, k;
+	c = unwind(c, &n); /* unboxed */
+	c = unwind(c, &k);
+	if(c) {
+	  n = c[0].ptr[0]; /* boxed */
+	  /* pass to continuation */
+	  c[0].ptr[0] = k;
+	  c[0].ptr[1] = n;
+	}
+      } continue;
+      numprim1(floor, floor);
+      numprim1(ceil, ceil);
+      numprim1(abs, fabs);
+      numprim1(neg, -);
+      numprim2(add, u+v);
+      numprim2(sub, u-v);
+      numprim2(mul, u*v);
+      numprim2(div, u/v);
+      numprim2(mod, u-v*floor(u/v));
+      numprim2(pow, pow(u,v));
+    }
+  }
 }
