@@ -67,3 +67,16 @@ static cell cheney(cell root) {
 
   return(new);
 }
+
+static void eval(cell app) {
+  for(;;) {
+    if(primitive(app[0])) {
+      app = app[0].fun(app);
+    } else {
+      cell next = app[0].ptr;
+      app[0] = next[1];
+      next[1].ptr = app;
+      app = next;
+    }
+  }
+}
