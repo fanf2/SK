@@ -133,18 +133,17 @@ static inline cell numarg(cell c, double *arg) {
   return(c);
 }
 
-static inline void numval(cell c, double val) {
-  cell n = c[0].ptr;
-  n[0].prim = special_number;
-  n[1].num = val;
+static inline void numval(cell r, double val) {
+  r[0].prim = special_number;
+  r[1].num = val;
 }
 
 static void eval(cell c) {
+  cell r;
   for(;;) {
     edump(c);
     switch(c[0].prim) {
-      default: {
-	/* unwind */
+      default: { /* unwind */
 	cell next = c[0].ptr;
 	c[0] = next[1];
 	next[1].ptr = c;
@@ -153,114 +152,96 @@ static void eval(cell c) {
       case(prim_I): { /* identity */
 	word arg;
 	c = rewind(c, &arg);
-	if(c) c[0] = arg;
+	c[0] = arg;
       } continue;
       case(prim_J): { /* false */
 	word t, f;
-	c = rewind(c, &t);
-	c = rewind(c, &f);
-	if(c) c[0] = f;
+	c = rewind(r=c, &t);
+	c = rewind(r=c, &f);
+	r[0].prim = prim_I;
+	r[1] = f;
+	c[0] = f;
       } continue;
       case(prim_K): { /* true */
 	word t, f;
-	c = rewind(c, &t);
-	c = rewind(c, &f);
-	if(c) c[0] = t;
+	c = rewind(r=c, &t);
+	c = rewind(r=c, &f);
+	r[0].prim = prim_I;
+	r[1] = t;
+	c[0] = t;
       } continue;
       case(prim_S): {
 	word f, g, x;
-	cell r;
 	c = need(c, 2);
-	c = rewind(c, &f);
-	c = rewind(c, &g);
+	c = rewind(r=c, &f);
+	c = rewind(r=c, &g);
 	c = rewind(r=c, &x);
-	if(c) {
-	  r[0] = cons(f,x);
-	  r[1] = cons(g,x);
-	}
+	r[0] = cons(f,x);
+	r[1] = cons(g,x);
       } continue;
       case(prim_C): {
 	word f, g, x;
-	cell r;
 	c = need(c, 1);
-	c = rewind(c, &f);
-	c = rewind(c, &g);
+	c = rewind(r=c, &f);
+	c = rewind(r=c, &g);
 	c = rewind(r=c, &x);
-	if(c) {
-	  r[0] = cons(f,x);
-	  r[1] = g;
-	}
+	r[0] = cons(f,x);
+	r[1] = g;
       } continue;
       case(prim_B): {
 	word f, g, x;
-	cell r;
 	c = need(c, 1);
-	c = rewind(c, &f);
-	c = rewind(c, &g);
+	c = rewind(r=c, &f);
+	c = rewind(r=c, &g);
 	c = rewind(r=c, &x);
-	if(c) {
-	  r[0] = f;
-	  r[1] = cons(g,x);
-	}
+	r[0] = f;
+	r[1] = cons(g,x);
       } continue;
       case(prim_SS): {
 	word e, f, g, x;
-	cell r;
 	c = need(c, 3);
-	c = rewind(c, &e);
-	c = rewind(c, &f);
-	c = rewind(c, &g);
+	c = rewind(r=c, &e);
+	c = rewind(r=c, &f);
+	c = rewind(r=c, &g);
 	c = rewind(r=c, &x);
-	if(c) {
-	  r[0] = cons(e, cons(f,x));
-	  r[1] = cons(g,x);
-	}
+	r[0] = cons(e, cons(f,x));
+	r[1] = cons(g,x);
       } continue;
       case(prim_CC): {
 	word e, f, g, x;
-	cell r;
 	c = need(c, 2);
-	c = rewind(c, &e);
-	c = rewind(c, &f);
-	c = rewind(c, &g);
+	c = rewind(r=c, &e);
+	c = rewind(r=c, &f);
+	c = rewind(r=c, &g);
 	c = rewind(r=c, &x);
-	if(c) {
-	  r[0] = cons(e, cons(f,x));
-	  r[1] = g;
-	}
+	r[0] = cons(e, cons(f,x));
+	r[1] = g;
       } continue;
       case(prim_BB): {
 	word e, f, g, x;
-	cell r;
 	c = need(c, 2);
-	c = rewind(c, &e);
-	c = rewind(c, &f);
-	c = rewind(c, &g);
+	c = rewind(r=c, &e);
+	c = rewind(r=c, &f);
+	c = rewind(r=c, &g);
 	c = rewind(r=c, &x);
-	if(c) {
-	  r[0] = e;
-	  r[1] = cons(f, cons(g,x));
-	}
+	r[0] = e;
+	r[1] = cons(f, cons(g,x));
       } continue;
       case(prim_Y): { /* recursion */
 	word fun;
 	cell r;
 	c = rewind(r=c, &fun);
-	if(c) {
-	  r[0] = fun;
-	  r[1].ptr = r;
-	}
+	r[0] = fun;
+	r[1].ptr = r;
       } continue;
       case(special_number): {
 	word n, k;
 	cell r;
-	c = rewind(c, &n); /* unboxed */
+	c = rewind(r=c, &n); /* unboxed */
 	c = rewind(r=c, &k);
-	if(c) {
-	  n = r[0]; /* boxed */
-	  r[0] = k;
-	  r[1] = n;
-	}
+	n = r[0]; /* boxed */
+	r[0] = k;
+	r[1] = n;
       } continue;
       case(prim_exit): {
 	exit(0);
@@ -268,22 +249,19 @@ static void eval(cell c) {
       case(prim_print): {
 	double v;
 	word k, w;
-	cell r;
-	c = numarg(c, &v);
-	c = rewind(c, &k);
+	c = numarg(r=c, &v);
+	c = rewind(r=c, &k);
 	c = rewind(r=c, &w);
-	if(c) {
-	  printf("%g\n", v);
-	  /* print n k w -> k w */
-	  r[0] = k;
-	}
+	printf("%g\n", v);
+	/* print n k w -> k w */
+	r[0] = k;
       } continue;
 
-#define numprim1(name, fun)		\
-      case(prim_##name): {		\
-	double v;			\
-	c = numarg(c, &v);		\
-	if(c) numval(c, fun(v));	\
+#define numprim1(name, fun)	\
+      case(prim_##name): {	\
+	double v;		\
+	c = numarg(r=c, &v);	\
+	numval(r, fun(v));	\
       } continue
 
       numprim1(floor, floor);
@@ -291,12 +269,12 @@ static void eval(cell c) {
       numprim1(abs, fabs);
       numprim1(neg, -);
 
-#define numprim2(name, expr)		\
-      case(prim_##name): {		\
-	double u, v;			\
-	c = numarg(c, &u);		\
-	c = numarg(c, &v);		\
-	if(c) numval(c, expr);		\
+#define numprim2(name, expr)	\
+      case(prim_##name): {	\
+	double u, v;		\
+	c = numarg(r=c, &u);	\
+	c = numarg(r=c, &v);	\
+	numval(r, expr);	\
       } continue
 
       numprim2(add, u+v);
