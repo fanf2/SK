@@ -119,10 +119,14 @@ static inline word cons(word w0, word w1) {
   return(w);
 }
 
-static void eval(cell c) {
+#include "initial-orders.h"
+
+int main(void) {
   word a1, a2, a3, a4;
   double v, w;
-  cell r;
+  cell r, c = initial_orders;
+  heap_size = 2*sizeof(initial_orders)
+              /sizeof(*initial_orders);
   for(;;) {
     edump(c);
     switch(c[0].prim) {
@@ -239,21 +243,4 @@ static void eval(cell c) {
       } continue;
     }
   }
-}
-
-word IO[] = {
-  [0].ptr = IO+2, [1].ptr = NULL,
-  [2].ptr = IO+4, [3].prim = prim_I, // w
-  [4].ptr = IO+6, [5].prim = prim_exit, // k
-  [6].ptr = IO+10, [7].ptr = IO+8,
-  [8].prim = special_number, [9].num = 42,
-  [10].ptr = IO+12, [11].prim = prim_print,
-  [12].ptr = IO+14, [13].prim = prim_K,
-  [14].prim = prim_S, [15].prim = prim_K,
-};
-
-int main(void) {
-  heap_size = 2*sizeof(IO)/sizeof(*IO);
-  eval(IO);
-  return(1);
 }
