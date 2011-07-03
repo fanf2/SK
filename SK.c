@@ -1,6 +1,6 @@
-typedef union word word;
+typedef union word word, cell[2];
 
-typedef void prim(word *);
+typedef void prim(cell app);
 
 union word {
   word *ptr;
@@ -12,9 +12,9 @@ word *heap_lo, *heap_ptr, *heap_hi;
 
 size_t heap_size = 1<<10;
 
-static inline word *cons(word w0, word w1) {
+static inline cell cons(word w0, word w1) {
   assert(heap_ptr < heap_hi);
-  word *cell = heap_ptr;
+  cell cell = heap_ptr;
   heap_ptr += 2;
   cell[0] = w0;
   cell[1] = w1;
@@ -22,14 +22,14 @@ static inline word *cons(word w0, word w1) {
 }
 
 /*
- * If the first word in a cell doesn't point to the heap
- * it must be a primitive function.
+ * If a word doesn't point to the heap it must be a primitive function
+ * (unless it is the second word of a cell containing a boxed number).
  */
 static inline bool primitive(word w) {
   return(w.ptr < heap_lo || heap_hi <= w.ptr);
 }
 
-static word *cheney(word *root) {
+static cell cheney(cell root) {
   word *new = malloc(heap_size * sizeof(*new));
 
   word *ptr = new;
@@ -37,17 +37,19 @@ static word *cheney(word *root) {
   ptr[1] = root[1];
   ptr += 2;
 
+  /* scan new heap word-by-word */
   for(word *here = new; here < ptr; here++) {
     if(primitive(*here)) {
-      /* do not try to treat numbers as pointers */
+      /* skip both words of a boxed number */
       if(here->prim = number)
 	here++;
       continue;
     }
-    word *there = here->ptr;
-    if(there[0].ptr == NULL)
+    cell there = here->ptr;
+    if(there[0].ptr == NULL) {
+      /* already copied */
       *here = there[1];
-    else {
+    } else {
       here->ptr = ptr;
       ptr[0] = there[0];
       ptr[1] = there[1];
@@ -62,5 +64,6 @@ static word *cheney(word *root) {
   heap_ptr = ptr;
   if(ptr - new > heap_size / 2)
     heap_size *= 2;
+
   return(new);
 }
