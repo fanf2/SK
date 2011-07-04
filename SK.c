@@ -50,7 +50,7 @@ static void dump(word w, int in, int mode) {
     printf("%g", c[1].num);
   } else {
     if(in != mode) printf("(");
-    dump(c[0], 0, mode && in == 1);
+    dump(c[0], 0, mode && in);
     printf(" ");
     dump(c[1], 1, mode);
     if(in != mode) printf(")");
@@ -157,12 +157,12 @@ int main(void) {
       } continue;
       case(prim_J): { /* J t f -> f */
 	rewind2;
-	result((word){ .prim = prim_I}, a2);
+	result((word){ .prim = prim_I }, a2);
 	c[0] = a2; /* shortcut */
       } continue;
       case(prim_K): { /* K t f -> t */
 	rewind2;
-	result((word){ .prim = prim_I}, a1);
+	result((word){ .prim = prim_I }, a1);
 	c[0] = a1; /* shortcut */
       } continue;
       case(prim_S): { /* S f g x -> (f x) (g x) */
@@ -191,14 +191,12 @@ int main(void) {
       } continue;
       case(prim_Y): { /* recursion Y f -> f (Y f) */
 	rewind1;
-	r[0] = a1;
-	r[1].ptr = r;
+	result(a1, (word){ r });
       } continue;
       case(special_number): { /* num N k -> k (num N) */
 	rewind2;
-	a1 = r[0]; /* boxed */
-	r[0] = a2;
-	r[1] = a1;
+	a1 = r[0]; /* boxed number */
+	result(a2,a1);
       } continue;
       case(prim_exit): {
 	exit(0);
