@@ -38,29 +38,19 @@ typedef union word {
 static inline bool isprim(word w) { return(primin < w.prim && w.prim < primax); }
 static inline bool isnum(word w)  { return(w.ptr[0].prim == prim_box_num); }
 
-static void rdump(word w, bool brac, bool rev) {
+static void dump(word w, int brac) {
   if(isprim(w)) {
     printf("%s", primname[w.prim]);
   } else if(isnum(w)) {
     printf("%g", w.ptr[1].num);
   } else {
     if(brac) printf("(");
-    rdump(w.ptr[rev], rev, 0);
+    dump(w.ptr[0], 0);
     printf(" ");
-    rdump(w.ptr[!rev], !rev, rev);
+    dump(w.ptr[1], 1);
     if(brac) printf(")");
   }
-}
-
-static void edump(word fun, word arg) {
-  rdump(fun, 0, 0);
-  printf(" -- ");
-  if(fun.prim == prim_box_num) {
-    printf("[%g] ", arg.ptr[1].num);
-    arg = arg.ptr[0];
-  }
-  rdump(arg, 0, 1);
-  printf("\n");
+  if(brac > 1) printf("\n");
 }
 
 static word *heap_lo, *heap_ptr, *heap_hi;
@@ -114,7 +104,7 @@ int main(void) {
   word a1, a2, a3, a4;
   double v, w;
   for(;;) {
-    edump(fun,arg);
+    dump(fun, 2);
     switch(fun.prim) {
       default: { /* unwind, per Schorr-Waite */
 	tmp = box[0]; box[0] = arg; arg = fun; fun = tmp;
