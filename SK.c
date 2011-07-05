@@ -67,8 +67,8 @@ static word *heap_lo, *heap_ptr, *heap_hi;
 static size_t heap_size;
 
 static word cheney(size_t n, word root0, word root1) {
-  word *ptr = malloc((heap_size += n) * sizeof(word));
-  word *new = ptr; ptr += 2;
+  word *new = malloc((heap_size += n) * sizeof(word));
+  word *ptr = new+2;
   new[0] = root0;
   new[1] = root1;
   /* scan new heap word-by-word */
