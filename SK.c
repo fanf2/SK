@@ -55,6 +55,10 @@ static void rdump(word w, bool brac, bool rev) {
 static void edump(word fun, word arg) {
   rdump(fun, 0, 0);
   printf(" -- ");
+  if(fun.prim == prim_box_num) {
+    printf("[%g] ", arg.ptr[1].num);
+    arg = arg.ptr[0];
+  }
   rdump(arg, 0, 1);
   printf("\n");
 }
