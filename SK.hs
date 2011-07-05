@@ -20,7 +20,7 @@ isToken c = isAlphaNum c || '_' == c
 disp e = display ELam e ""
 
 exec e = do e' <- execute (compile (fst (parse e)))
-            putStr (disp e')
+            putStr (disp e' ++ "\n")
 
 comp = disp . compile  . fst . parse
 
