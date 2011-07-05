@@ -6,7 +6,7 @@
 
 typedef enum {
   primin = -1,
-  special_forward, special_number,
+  prim_nil, prim_box_moved, prim_box_num, /* special */
   prim_Y, prim_I, prim_J, prim_K,
   prim_S, prim_C, prim_B,
   prim_SS, prim_CC, prim_BB,
@@ -17,7 +17,7 @@ typedef enum {
 } prim;
 
 static const char *primname[] = {
-  "nil", "number",
+  "nil", "moved", "num",
   "Y", "I", "J", "K",
   "S", "C", "B", "SS", "CC", "BB",
   "exit", "print", "putc", "getc",
@@ -28,142 +28,126 @@ static const char *primname[] = {
 typedef union word {
   union word *ptr;
   prim prim;
-  double num; /* only used in the second word of a cell */
-} word, *cell;
+  double num;
+} word;
+
+#define mkprim(f) ((word){ .prim = (prim_##f) })
+#define mkptr(p)  ((word){ .ptr  = (p) })
+#define mknum(n)  ((word){ .num  = (n) })
+
+static inline bool isprim(word w) { return(primin < w.prim && w.prim < primax); }
+static inline bool isnum(word w)  { return(w.ptr[0].prim == prim_box_num); }
 
 word *heap_lo, *heap_ptr, *heap_hi;
 size_t heap_size;
 
-static inline bool primitive(word w) {
-  return(primin < w.prim && w.prim < primax);
-}
-
-static inline bool isnumber(cell c) {
-  return(c[0].prim == special_number);
-}
-
-static void dump(word w, int in, int mode) {
-  cell c = w.ptr;
-  if(primitive(w)) {
+static void rdump(word w, bool brac, bool rev) {
+  if(isprim(w)) {
     printf("%s", primname[w.prim]);
-  } else if(isnumber(c)) {
-    printf("%g", c[1].num);
+  } else if(isnum(w)) {
+    printf("%g", w.ptr[1].num);
   } else {
-    if(in != mode) printf("(");
-    dump(c[0], 0, mode && in);
+    if(brac) printf("(");
+    rdump(w.ptr[rev], rev, 0);
     printf(" ");
-    dump(c[1], 1, mode);
-    if(in != mode) printf(")");
+    rdump(w.ptr[!rev], !rev, rev);
+    if(brac) printf(")");
   }
 }
 
-static void edump(cell c) {
-  dump(c[0], 0, 0);
+static void edump(word fun, word arg) {
+  rdump(fun, 0, 0);
   printf(" -- ");
-  dump(c[1], 1, 1);
+  rdump(arg, 0, 1);
   printf("\n");
 }
 
-static cell cheney(cell root) {
+static word cheney(word root0, word root1) {
   word *new = malloc(heap_size * sizeof(*new));
   word *ptr = new;
-  ptr[0] = root[0];
-  ptr[1] = root[1];
+  ptr[0] = root0;
+  ptr[1] = root1;
   ptr += 2;
   /* scan new heap word-by-word */
   for(word *here = new; here < ptr; here++) {
-    if(primitive(*here)) {
+    if(isprim(*here)) {
       /* skip both words of a boxed number */
-      if(isnumber(here)) here++;
+      if(here->prim == prim_box_num) here++;
       continue;
     }
-    cell there = here->ptr;
-    if(there[0].prim == special_forward) {
-      /* already copied */
+    word *there = here->ptr;
+    if(there[0].prim == prim_box_moved) {
       *here = there[1];
     } else {
-      here->ptr = ptr;
-      ptr[0] = there[0];
-      ptr[1] = there[1];
-      there[0].prim = special_forward;
-      there[1].ptr = ptr;
-      ptr += 2;
+      /* move from there to here */
+      ptr[0] = there[0]; there[0] = mkprim(box_moved);
+      ptr[1] = there[1]; there[1] = mkptr(ptr);
+      here->ptr = ptr; ptr += 2;
     }
   }
-  printf("cheney copied %ld words\n", (long)(ptr-new));
+  printf("cheney copied %ld pairs\n", (long)(ptr-new)/2);
   free(heap_lo);
   heap_lo = new;
   heap_hi = new + heap_size;
   heap_ptr = ptr;
   while(ptr > new + heap_size / 2)
     heap_size *= 2;
-  return(new);
+  return(mkptr(new));
 }
 
 static inline word cons(word w0, word w1) {
   assert(heap_ptr < heap_hi);
-  cell c = heap_ptr;
-  c[0] = w0;
-  c[1] = w1;
+  word *box = heap_ptr;
+  box[0] = w0;
+  box[1] = w1;
   heap_ptr += 2;
-  word w = { c };
-  return(w);
+  return(mkptr(box));
 }
 
-#define need(n) \
-  ((void)((heap_hi < heap_ptr + 2*n) && (c = cheney(c))))
+#define need(n)	((heap_ptr + 2*(n) < heap_hi) ? (void)(0) : \
+  (void)(tmp = cheney(fun,arg), fun = tmp.ptr[0], arg = tmp.ptr[1]))
 
 #include "initial-orders.h"
 
-//    <- rewind    unwind ->
-//
-//  [ | ]  [3| ]  [3| ]  [3| ]
-//   v        ^      ^      ^
-//  [ |3]  [ | ]  [2| ]  [2| ]
-//   v      v        ^      ^
-//  [ |2]  [ |2]  [ | ]  [1| ]
-//   v      v      v        ^
-//  [f|1]  [f|1]  [f|1]  [f| ]
-//
 int main(void) {
-  word a1, a2, a3, a4;
-  double v, w;
-  cell r, c = initial_orders;
   heap_size = 2*sizeof(initial_orders)
               /sizeof(*initial_orders);
+  word fun = mkptr(initial_orders), arg = mkprim(nil), tmp;
+#define box fun.ptr
+#define result(r0,r1) (box[0] = (r0), box[1] = (r1))
+  word a1, a2, a3, a4;
+  double v, w;
   for(;;) {
-    edump(c);
-    switch(c[0].prim) {
+    edump(fun,arg);
+    switch(fun.prim) {
       default: { /* unwind */
-	cell next = c[0].ptr;
-	c[0] = next[1];
-	next[1].ptr = c;
-	c = next;
+	tmp = box[0]; box[0] = arg; arg = fun; fun = tmp;
       } continue;
-#define rewind(a) do {		\
-	cell prev = c[1].ptr;	\
-	a = c[1] = prev[0];	\
-	r = prev[0].ptr = c;	\
-	c = prev;		\
+#define rewind(a) do {						\
+	tmp = fun; fun = arg; arg = box[0]; box[0] = tmp;	\
+	a = box[1];						\
       } while(0)
 #define rewind1          rewind(a1)
 #define rewind2 rewind1; rewind(a2)
 #define rewind3 rewind2; rewind(a3)
 #define rewind4 rewind3; rewind(a4)
-#define result(r0,r1) (r[0] = (r0), r[1] = (r1))
+      case(prim_Y): { /* recursion Y f -> f (Y f) */
+	rewind1;
+	result(a1,fun);
+      } continue;
       case(prim_I): { /* identity */
 	rewind1;
-	c[0] = a1;
+	fun = a1;
       } continue;
       case(prim_J): { /* J t f -> f */
 	rewind2;
-	result((word){ .prim = prim_I }, a2);
-	c[0] = a2; /* shortcut */
+	result(mkprim(I), a2);
+	fun = a2; /* shortcut */
       } continue;
       case(prim_K): { /* K t f -> t */
 	rewind2;
-	result((word){ .prim = prim_I }, a1);
-	c[0] = a1; /* shortcut */
+	result(mkprim(I), a1);
+	fun = a1; /* shortcut */
       } continue;
       case(prim_S): { /* S f g x -> (f x) (g x) */
 	need(2); rewind3;
@@ -189,30 +173,22 @@ int main(void) {
 	need(2); rewind4;
 	result(a1,cons(a2,cons(a3,a4)));
       } continue;
-      case(prim_Y): { /* recursion Y f -> f (Y f) */
-	rewind1;
-	result(a1, (word){ r });
-      } continue;
-      case(special_number): { /* num N k -> k (num N) */
+      case(prim_box_num): { /* num N k -> k (num N) */
 	rewind2;
-	a1 = r[0]; /* boxed number */
+	a1 = box[0]; /* boxed number, not bare float */
 	result(a2,a1);
       } continue;
-      case(prim_exit): {
-	exit(0);
-      } continue;
-#define numarg(a,n) do {				\
-	rewind(a);					\
-	assert(!primitive(a) && isnumber(a.ptr));	\
-	n = a.ptr[1].num;				\
+#define numarg(a,n) do {			\
+	rewind(a);				\
+	assert(!isprim(a) && isnum(a));	\
+	n = a.ptr[1].num;			\
     } while(0)
 #define numarg1          numarg(a1,v)
 #define numarg2 numarg1; numarg(a2,w)
 #define numprim(N, name, val)			\
       case(prim_##name): {			\
 	numarg##N;				\
-	r[0].prim = special_number;		\
-	r[1].num = val;				\
+	result(mkprim(box_num), mknum(val));	\
       } continue
       numprim(1, floor, floor(v));
       numprim(1, ceil, ceil(v));
@@ -228,7 +204,10 @@ int main(void) {
 	numarg1;
 	rewind2;
 	printf("%g\n", v);
-	r[0] = a1;
+	result(a1,a2);
+      } continue;
+      case(prim_exit): {
+	exit(0);
       } continue;
     }
   }
