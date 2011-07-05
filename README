@@ -1,0 +1,96 @@
+Simple SK combinator reduction engine
+-------------------------------------
+
+Written by Tony Finch <dot@dotat.at>
+
+
+This program uses SK combinators to implement a lazy functional
+programming language, as described by Turner (1979) and Peyton Jones
+(1987), and as previously implemented by me in a less helpful way.
+
+The combinator expression is represented as a graph in the heap. Each
+node is a pair of words which normally represent the application of a
+function to an argument. Words can either be small integers (which
+identify primitive combinators) or pointers to other nodes. There are
+two exceptions:
+
+Double precision floating point numbers are stored in the second word
+of a node following a special small integer tag. Neither of these can
+appear in any other context, except temporarily when unwinding the
+spine with a number at the head.
+
+During garbage collection, nodes that have been moved from the old heap
+to the new heap are replaced with another special tag and a pointer to
+the node's new location.
+
+Evaluation proceeds in normal order, by repeatedly reducing the leftmost
+outermost application. We find this redex by unwinding the spine of the
+program graph using Schorr-Waite pointer reversal, which requires
+minimal state outside the graph. When we reach the head of the spine we
+find a primitive combinator; this is reduced by rewinding enough to
+collect its arguments, then overwriting the root of the redex with the
+result.
+
+The key variables in the evaluator are:
+
+  fun: root of the current redex
+  box: alias for the heap node pointed to by fun
+  arg: the pointer-reversed list of the extra arguments applied to the redex
+  aN:  argument words collected when rewinding
+
+The primitive numeric functions assume that their arguments have already
+been evaluated. In order to support this, numbers also act as
+combinators that take a continuation to which the evaluated number is
+passed. The numeric primitives can then be wrapped in a function that
+forces evaluation of their arguments:
+
+  \wrap = (\op \a1 \a2
+    a1 \n1
+    a2 \n2
+    op n1 n2)
+
+The primitive I/O functions are designed to be used in monadic style. As
+well as their basic arguments they take a continuation and a token
+representing the state of the world. After performing their side effects
+they pass the world to the continuation.
+
+New nodes are constructed using a bump allocator. The heap layout is:
+
+  heap_lo  <= [ allocated nodes ] < heap_ptr
+  heap_ptr <= [ free space      ] < heap_hi
+
+The garbage collector creates a new heap and moves the live data into
+it, using Cheney's algorithm. This has the invariants:
+
+  new  <= [ nodes pointing to new heap ] < scan
+  scan <= [ nodes pointing to old heap ] < ptr
+  ptr  <= [ free space                 ] < new + heap_size
+
+If the live data fills more than half the new heap, double the heap size
+will be used in the next GC run.
+
+There is also some debugging code for printing the graph. It normally
+prints the function sub-tree without brackets and the argument sub-tree
+with brackets, in the conventional manner. It can also print the unwound
+spine, in which case it prints the words in reverse order.
+
+
+Chris Cheney, "a nonrecursive list compacting algorithm".
+Communications of the ACM, volume 13 issue 11, Nov 1970.
+
+Tony Finch, 14th International Obfuscated C Code Competition.
+http://www0.us.ioccc.org/years.html#1998_fanf
+
+David Gries, "Schorr-Waite graph marking algorithm ­ developed with style".
+http://www.cs.cornell.edu/courses/cs312/2007fa/lectures/lec21-schorr-waite.pdf
+
+Simon Peyton Jones, "the implementation of functional programming
+languages", chapter 16, "SK combinators". Prentice Hall, 1987.
+http://research.microsoft.com/~simonpj/papers/slpj-book-1987/
+
+Herbert Schorr & William Waite, "an efficient machine-independent
+procedure for garbage collection in various list structures".
+Communications of the ACM, volume 10 issue 8, Aug 1967.
+
+David Turner, "a new implementation technique for applicative languages".
+Software - Practice and Experience, volume 9 issue 1, Jan 1979.
