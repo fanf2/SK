@@ -63,7 +63,7 @@ static word *heap_lo, *heap_ptr, *heap_hi;
 static size_t heap_size;
 
 static word cheney(size_t n, word root0, word root1) {
-  word *ptr = malloc((heap_size + n*2) * sizeof(word));
+  word *ptr = malloc((heap_size += n) * sizeof(word));
   word *new = ptr; ptr += 2;
   new[0] = root0;
   new[1] = root1;
@@ -99,7 +99,7 @@ static inline word cons(word w0, word w1) {
 }
 
 #define need(n)	((heap_ptr + 2*(n) < heap_hi) ? (void)(0) : \
-  (void)(tmp = cheney(n,fun,arg), fun = tmp.ptr[0], arg = tmp.ptr[1]))
+  (void)(tmp = cheney(2*(n),fun,arg), fun = tmp.ptr[0], arg = tmp.ptr[1]))
 
 #include "initial-orders.h"
 
