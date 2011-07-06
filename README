@@ -69,11 +69,6 @@ it, using Cheney's algorithm. This has the invariants:
 If the live data fills more than half the new heap, double the heap size
 will be used in the next GC run.
 
-There is also some debugging code for printing the graph. It normally
-prints the function sub-tree without brackets and the argument sub-tree
-with brackets, in the conventional manner. It can also print the unwound
-spine, in which case it prints the words in reverse order.
-
 
 Chris Cheney, "a nonrecursive list compacting algorithm".
 Communications of the ACM, volume 13 issue 11, Nov 1970.

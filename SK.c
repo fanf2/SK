@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+static bool debug;
+
 typedef enum {
   primin = -1,
   prim_nil, prim_box_moved, prim_box_num, /* special */
@@ -40,19 +42,19 @@ typedef union word {
 static inline bool isprim(word w) { return(primin < w.prim && w.prim < primax); }
 static inline bool isnum(word w)  { return(w.ptr[0].prim == prim_box_num); }
 
-static void dump(word w, int brac) {
+static void dump(word w, int clear) {
   if(isprim(w)) {
     printf("%s", primname[w.prim]);
   } else if(isnum(w)) {
     printf("%g", w.ptr[1].num);
   } else {
-    if(brac) printf("(");
-    dump(w.ptr[0], 0);
+    if(!clear) printf("(");
+    dump(w.ptr[0], 1);
     printf(" ");
-    dump(w.ptr[1], 1);
-    if(brac) printf(")");
+    dump(w.ptr[1], 0);
+    if(!clear) printf(")");
   }
-  if(brac > 1) printf("\n");
+  if(clear > 1) printf("\n");
 }
 
 static word *heap_lo, *heap_ptr, *heap_hi;
@@ -77,7 +79,7 @@ static word cheney(size_t n, word root0, word root1) {
     }
     *scan = box[1]; /* now points to replacement in new heap */
   }
-  printf("cheney moved %ld pairs\n", (long)(ptr-new)/2);
+  if(debug) printf("cheney moved %ld pairs\n", (long)(ptr-new)/2);
   free(heap_lo);
   heap_lo = new;
   heap_ptr = ptr;
@@ -99,14 +101,17 @@ static inline word cons(word w0, word w1) {
 
 #include "initial-orders.h"
 
-int main(void) {
+int main(int argc, char *argv[]) {
+  debug = (argc == 2 && strcmp(argv[1], "-v") == 0);
+  if(!debug && argc > 1)
+    exit(!!fprintf(stderr, "usage: SK [-v]\n"));
   heap_size = 2*sizeof(initial_orders)/sizeof(word);
   word fun = mkptr(initial_orders), arg = mkprim(nil), tmp;
 #define box fun.ptr
   word a1, a2, a3, a4;
   double v, w;
   for(;;) {
-    dump(fun, 2);
+    if(debug) dump(fun, 2);
     switch(fun.prim) {
       default: { /* unwind, per Schorr-Waite */
 	tmp = box[0]; box[0] = arg; arg = fun; fun = tmp;
