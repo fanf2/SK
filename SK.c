@@ -44,17 +44,17 @@ static inline bool isnum(word w)  { return(w.ptr[0].prim == prim_box_num); }
 
 static void dump(word w, int clear) {
   if(isprim(w)) {
-    printf("%s", primname[w.prim]);
+    fprintf(stderr, "%s", primname[w.prim]);
   } else if(isnum(w)) {
-    printf("%g", w.ptr[1].num);
+    fprintf(stderr, "%g", w.ptr[1].num);
   } else {
-    if(!clear) printf("(");
+    if(!clear) fprintf(stderr, "(");
     dump(w.ptr[0], 1);
-    printf(" ");
+    fprintf(stderr, " ");
     dump(w.ptr[1], 0);
-    if(!clear) printf(")");
+    if(!clear) fprintf(stderr, ")");
   }
-  if(clear > 1) printf("\n");
+  if(clear > 1) fprintf(stderr, "\n");
 }
 
 static word *heap_lo, *heap_ptr, *heap_hi;
@@ -79,7 +79,7 @@ static word cheney(size_t n, word root0, word root1) {
     }
     *scan = box[1]; /* now points to replacement in new heap */
   }
-  if(debug) printf("cheney moved %ld pairs\n", (long)(ptr-new)/2);
+  if(debug) fprintf(stderr, "cheney moved %ld pairs\n", (long)(ptr-new)/2);
   free(heap_lo);
   heap_lo = new;
   heap_ptr = ptr;
@@ -146,7 +146,10 @@ int main(int argc, char *argv[]) {
       } continue;
       case(prim_S): { /* S f g x -> (f x) (g x) */
 	need(2); rewind3;
-	result(cons(a1,a3),cons(a2,a3));
+	if(a1.prim == a2.prim || a1.ptr == a2.ptr) {
+	  a1 = cons(a2,a3); result(a1,a1);
+	} else
+	  result(cons(a1,a3),cons(a2,a3));
       } continue;
       case(prim_C): { /* C f g x -> (f x) (g) */
 	need(1); rewind3;
@@ -158,13 +161,16 @@ int main(int argc, char *argv[]) {
       } continue;
       case(prim_SS): { /* SS e f g x -> (e (f x)) (g x) */
 	need(3); rewind4;
-	result(cons(a1,cons(a2,a4)),cons(a3,a4));
+	if(a2.prim == a3.prim || a2.ptr == a3.ptr) {
+	  a2 = cons(a3,a4); result(cons(a1,a2),a2);
+	} else
+	  result(cons(a1,cons(a2,a4)),cons(a3,a4));
       } continue;
       case(prim_CC): { /* CC e f g x -> (e (f x)) (g) */
 	need(2); rewind4;
 	result(cons(a1,cons(a2,a4)),a3);
       } continue;
-      case(prim_BB): { /* BB e f g x -> (e) (f (g x)) */
+      case(prim_BB): { /* BB e f g x -> e (f (g x)) */
 	need(2); rewind4;
 	result(a1,cons(a2,cons(a3,a4)));
       } continue;
