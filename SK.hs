@@ -20,12 +20,31 @@ isToken c = isAlphaNum c || '_' == c
 disp e = display ELam e ""
 
 exec e = do e' <- execute (compile (fst (parse e)))
-            putStr (disp e' ++ "\n")
+            putStrLn $ disp e'
 
 comp = disp . compile  . fst . parse
 
 simp = disp . simplify . fst . parse
 
+main = do
+  e <- getLine
+  let c = compile $ fst $ parse e
+  putStrLn $ disp c
+  let (i, "IO(0)", tree) = to_C 0 c
+  putStrLn $ "allocated " ++ show i
+  putStr tree
+  main
+
+-- print in ugly initial orders format
+
+to_C i (Var v)   = (i,   "IOprim(" ++ v ++ ")", "")
+to_C i (E n)     = (i+1, "IO(" ++ show i ++ ")", "  IOprim(box_num), IOnum(" ++ show n ++ "),\n")
+to_C i (f :@: a) = (i'', "IO(" ++ show i ++ ")", app ++ fun' ++ arg')
+    where
+      app = "  " ++ fun ++ ", " ++ arg ++ ",\n"
+      (i',  fun, fun') = to_C (i+1) f
+      (i'', arg, arg') = to_C  i'   a
+to_C i e = (i, "IOprim(" ++ show e ++ ")", "")
 
 -- turn String into Expr
 
@@ -86,16 +105,16 @@ optimise        p               r        = S  :@: p       :@: r
 
 -- do combinator reduction
 
-execute (    Y    :@: f) = let g = f :@: g in execute                       g          
-execute (    I    :@: f   )                 = execute         f                        
-execute (    J    :@: f :@: g)              = execute                       g          
-execute (    K    :@: f :@: g   )           = execute         f                        
-execute (    S    :@: f :@: g :@: x)        = execute       ((f :@: x) :@: (g :@: x))  
-execute (    C    :@: f :@: g :@: x   )     = execute       ((f :@: x) :@:  g)         
-execute (    B    :@: f :@: g :@: x      )  = execute        (f        :@: (g :@: x))  
-execute (SS :@: c :@: f :@: g :@: x)        = execute (c :@: (f :@: x) :@: (g :@: x))  
-execute (CC :@: c :@: f :@: g :@: x   )     = execute (c :@: (f :@: x) :@:  g)         
-execute (BB :@: c :@: f :@: g :@: x      )  = execute (c :@: (f        :@: (g :@: x))) 
+execute (    Y    :@: f) = let g = f :@: g in execute                       g
+execute (    I    :@: f   )                 = execute         f
+execute (    J    :@: f :@: g)              = execute                       g
+execute (    K    :@: f :@: g   )           = execute         f
+execute (    S    :@: f :@: g :@: x)        = execute       ((f :@: x) :@: (g :@: x))
+execute (    C    :@: f :@: g :@: x   )     = execute       ((f :@: x) :@:  g)
+execute (    B    :@: f :@: g :@: x      )  = execute        (f        :@: (g :@: x))
+execute (SS :@: c :@: f :@: g :@: x)        = execute (c :@: (f :@: x) :@: (g :@: x))
+execute (CC :@: c :@: f :@: g :@: x   )     = execute (c :@: (f :@: x) :@:  g)
+execute (BB :@: c :@: f :@: g :@: x      )  = execute (c :@: (f        :@: (g :@: x)))
 
 execute (G :@: f) = do c <- getChar
                        execute (f :@: E (ord c))
