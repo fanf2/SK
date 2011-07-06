@@ -13,6 +13,7 @@ typedef enum {
   prim_exit, prim_print, prim_putc, prim_getc,
   prim_floor, prim_ceil, prim_abs, prim_neg,
   prim_add, prim_sub, prim_mul, prim_div, prim_mod, prim_pow,
+  prim_lt, prim_le, prim_eq, prim_ge, prim_gt, prim_ne,
   primax
 } prim;
 
@@ -22,7 +23,8 @@ static const char *primname[] = {
   "S", "C", "B", "SS", "CC", "BB",
   "exit", "print", "putc", "getc",
   "floor", "ceil", "abs", "neg",
-  "+", "-", "*", "/", "%", "^"
+  "+", "-", "*", "/", "%", "^",
+  "<", "=<", "=", ">=", ">", "<>",
 };
 
 typedef union word {
@@ -119,6 +121,8 @@ int main(void) {
 #define rewind4 rewind3; rewind(a4)
 #define result(r0,r1) /* overwrite root of redex */ \
 	(box[0] = (r0), box[1] = (r1))
+#define indirect(r1) /* single word result */ \
+	(result(mkprim(I),r1), fun = box[1])
       case(prim_Y): { /* recursion Y f -> f (Y f) */
 	rewind1;
 	result(a1,fun);
@@ -129,13 +133,11 @@ int main(void) {
       } continue;
       case(prim_J): { /* J t f -> f */
 	rewind2;
-	result(mkprim(I), a2);
-	fun = a2; /* shortcut */
+	indirect(a2);
       } continue;
       case(prim_K): { /* K t f -> t */
 	rewind2;
-	result(mkprim(I), a1);
-	fun = a1; /* shortcut */
+	indirect(a1);
       } continue;
       case(prim_S): { /* S f g x -> (f x) (g x) */
 	need(2); rewind3;
@@ -168,7 +170,7 @@ int main(void) {
       } continue;
 #define numarg(a,n) do {			\
 	rewind(a);				\
-	assert(!isprim(a) && isnum(a));	\
+	assert(!isprim(a) && isnum(a));		\
 	n = a.ptr[1].num;			\
     } while(0)
 #define numarg1          numarg(a1,v)
@@ -176,7 +178,7 @@ int main(void) {
 #define numprim(N, name, val)			\
       case(prim_##name): {			\
 	numarg##N;				\
-	result(mkprim(box_num), mknum(val));	\
+	result(mkprim(box_num),mknum(val));	\
       } continue
       numprim(1, floor, floor(v));
       numprim(1, ceil, ceil(v));
@@ -188,13 +190,34 @@ int main(void) {
       numprim(2, div, v/w);
       numprim(2, mod, v-w*floor(v/w));
       numprim(2, pow, pow(v,w));
-      case(prim_print): {/* print n k w -> k w */
-	numarg1;
-	rewind2;
+#define boolprim(name, val)			\
+      case(prim_##name): {			\
+	numarg2;				\
+	indirect(val ? mkprim(K) : mkprim(J));	\
+      } continue
+      boolprim(lt, v <  w);
+      boolprim(le, v <= w);
+      boolprim(eq, v == w);
+      boolprim(ge, v >= w);
+      boolprim(gt, v >  w);
+      boolprim(ne, v != w);
+#define consnum(val) cons(mkprim(box_num),mknum(val))
+      case(prim_getc): { /* putc k w -> k n w */
+	need(2); rewind2;
+	result(cons(a1,consnum(getchar())),a2);
+      } continue;
+      case(prim_putc): { /* putc n k w -> k w */
+	numarg1; rewind2;
+	putchar((int)v % 256);
+	result(a1,a2);
+      } continue;
+      case(prim_print): { /* print n k w -> k w */
+	numarg1; rewind2;
 	printf("%g\n", v);
 	result(a1,a2);
       } continue;
-      case(prim_exit): {
+      case(prim_exit): { /* exit w -> */
+	rewind1;
 	exit(0);
       } continue;
     }
