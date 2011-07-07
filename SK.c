@@ -147,10 +147,9 @@ int main(int argc, char *argv[]) {
       } continue;
       case(prim_S): { /* S f g x -> (f x) (g x) */
 	need(2); rewind3;
-	if(a1.prim == a2.prim || a1.ptr == a2.ptr) {
-	  a1 = cons(a2,a3); result(a1,a1);
-	} else
-	  result(cons(a1,a3),cons(a2,a3));
+	if(a1.ptr == a2.ptr) a1 = a2 = cons(a2,a3);
+	else a1 = cons(a1,a3), a2 = cons(a2,a3);
+	result(a1,a2);
       } continue;
       case(prim_C): { /* C f g x -> (f x) (g) */
 	need(1); rewind3;
@@ -162,10 +161,9 @@ int main(int argc, char *argv[]) {
       } continue;
       case(prim_SS): { /* SS e f g x -> (e (f x)) (g x) */
 	need(3); rewind4;
-	if(a2.prim == a3.prim || a2.ptr == a3.ptr) {
-	  a2 = cons(a3,a4); result(cons(a1,a2),a2);
-	} else
-	  result(cons(a1,cons(a2,a4)),cons(a3,a4));
+	if(a2.ptr == a3.ptr) a2 = a3 = cons(a3,a4);
+	else a2 = cons(a2,a4), a3 = cons(a3,a4);
+	result(cons(a1,a2),a3);
       } continue;
       case(prim_CC): { /* CC e f g x -> (e (f x)) (g) */
 	need(2); rewind4;
