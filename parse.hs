@@ -5,11 +5,11 @@ infixl 9 :@:
 data Expr = Expr :@: Expr | Lambda String Expr | Var String | Num Integer
      deriving (Eq, Read, Show)
 
-tryJoin f p qq = do pp <- p
-                    return (f qq pp)
-                 <|> return qq
+tryJoin f p q = p >>= \pp->
+               (q >>= \qq-> return (f pp qq))
+                        <|> return    pp
 
-expr = lambda <|> (terms >>= tryJoin (:@:) (lambda <|> rest))
+expr = lambda <|> tryJoin (:@:) terms (lambda <|> rest)
 
 rest = ch ';' >> expr
 
