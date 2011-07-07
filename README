@@ -5,14 +5,14 @@ Written by Tony Finch <dot@dotat.at>
 
 
 This program uses SK combinators to implement a lazy functional
-programming language, as described by Turner (1979) and Peyton Jones
-(1987), and as previously implemented by me in a less helpful way.
+programming language, as described by Turner and Peyton Jones, and as
+previously implemented by me in a less helpful way (see refs below).
 
 The combinator expression is represented as a graph in the heap. Each
 node is a pair of words which normally represent the application of a
 function to an argument. Words can either be small integers (which
-identify primitive combinators) or pointers to other nodes. There are
-two exceptions:
+identify primitive combinators and functions) or pointers to other
+nodes. There are two exceptions:
 
 Double precision floating point numbers are stored in the second word
 of a node following a special small integer tag. Neither of these can
@@ -27,15 +27,15 @@ Evaluation proceeds in normal order, by repeatedly reducing the leftmost
 outermost application. We find this redex by unwinding the spine of the
 program graph using Schorr-Waite pointer reversal, which requires
 minimal state outside the graph. When we reach the head of the spine we
-find a primitive combinator; this is reduced by rewinding enough to
-collect its arguments, then overwriting the root of the redex with the
-result.
+find a primitive combinator or function; this is reduced by rewinding
+enough to collect its arguments, then overwriting the root of the redex
+with the result.
 
 The key variables in the evaluator are:
 
   fun: root of the current redex
   box: alias for the heap node pointed to by fun
-  arg: the pointer-reversed list of the extra arguments applied to the redex
+  arg: the pointer-reversed list of extra arguments applied to the redex
   aN:  argument words collected when rewinding
 
 The primitive numeric functions assume that their arguments have already
@@ -44,10 +44,10 @@ combinators that take a continuation to which the evaluated number is
 passed. The numeric primitives can then be wrapped in a function that
 forces evaluation of their arguments:
 
-  \wrap = (\op \a1 \a2
+  \wrap = \op \a1 \a2
     a1 \n1
     a2 \n2
-    op n1 n2)
+    op n1 n2;
 
 The primitive I/O functions are designed to be used in monadic style. As
 well as their basic arguments they take a continuation and a token
@@ -70,8 +70,40 @@ If the live data fills more than half the new heap, double the heap size
 will be used in the next GC run.
 
 
+The syntax of lambda expressions is inspired by Fexl (especially the
+semicolon operator) though the precedence of the = operator is lower.
+
+  term = name | number | "(" expr ")"
+
+  app = app term | term
+
+  let = "\" name "=" app ";" expr
+
+  fun = "\" name expr
+
+  arg = ";" expr
+
+  rest = let | fun | arg
+
+  expr = let | fun | app | app rest
+
+
+Line counts:
+
+bootstrap: 14
+debugging: 26
+allocator: 35
+functions: 63
+evaluator: 84
+
+
+References:
+
 Chris Cheney, "a nonrecursive list compacting algorithm".
 Communications of the ACM, volume 13 issue 11, Nov 1970.
+
+Patrick Chkoreff, "Fexl: a functional expression language"
+http://fexl.com/code/
 
 Tony Finch, 14th International Obfuscated C Code Competition.
 http://www0.us.ioccc.org/years.html#1998_fanf
